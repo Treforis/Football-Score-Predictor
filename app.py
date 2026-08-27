@@ -1,15 +1,18 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from streamlit_js_eval import streamlit_js_eval
 
 st.set_page_config(page_title="Football Predictor", layout="wide")
+
+TZ = streamlit_js_eval(js_expression="Intl.DateTimeFormat().resolvedOptions().timezone", key="tz") or "America/Toronto"
 
 league = st.sidebar.selectbox("League",["PD","PL","BL1","SA","FL1"], format_func=lambda x: {"PD": "La Liga", "PL": "Premiere League", "BL1": "Bundesliga", "SA": "Serie A", "FL1": "Ligue 1"}[x])
 
 
 fixtures = pd.read_csv(f"artifacts/{league}/fixtures.csv")
 fixtures['kick'] = (pd.to_datetime(fixtures['utc'], utc=True)
-                      .dt.tz_convert('America/Toronto')
+                      .dt.tz_convert(TZ)
                       .dt.tz_localize(None))
 fixtures['dt'] = fixtures['kick'].dt.normalize()
 maxmd = int(fixtures['matchday'].max())
@@ -60,7 +63,7 @@ def match_card(f,middle):
     c3.markdown(f"<div><b>{f.away}</b> {badge(f.away_crest)}</div>", unsafe_allow_html=True)
 
 with tab1:
-    today = pd.Timestamp.today().normalize()
+    today = pd.Timestamp.now(tz='America/Toronto').normalize().tz_localize(None)
 
     finished = fixtures[fixtures['dt'] < today]
     live     = fixtures[fixtures['dt'] == today]
