@@ -1,3 +1,14 @@
+"""
+fetch.py — pull fixtures from the API and predict every one of them.
+
+Per league: call football-data.org -> map team names to the training
+data's spellings -> read each team's form and Elo from snapshot.csv ->
+predict -> write the files app.py reads.
+
+Also writes finished matches back to data/, so the next pipeline.py run
+retrains on them. Run order matters: fetch -> pipeline -> fetch.
+"""
+
 import os
 import requests
 import numpy as np
@@ -9,8 +20,18 @@ from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.getenv("FOOTBALL_API_TOKEN")
 
+# Fallback for teams with no history: promoted sides, or clubs back from a
+# lower division. Elo 1400 is below average because promoted teams usually
+# are. Predictions for these teams are confident but unfounded.
 DEFAULT = {'gf_now': 1.0, 'ga_now': 1.6, 'pts_now': 1.0, 'elo': 1400}
 
+# The API sends shortName ("Atleti", "PSG"); the training CSVs use
+# football-data.co.uk spellings ("Ath Madrid", "Paris SG"). Unmapped names
+# silently fall through to DEFAULT.
+#
+# To extend: run this file and read the "unmatched teams" line. A mapping
+# whose target isn't in snapshot.csv is worse than none, since it can never
+# match.
 NAME_MAPS = {
     'PD': {
         'Alavés': 'Alaves',
@@ -49,7 +70,7 @@ NAME_MAPS = {
         'Ipswich Town': 'Ipswich',
         'Coventry City': 'Coventry',
         'Hull City': 'Hull',
-    
+
     },
     'BL1': {
         '1. FC Köln': 'FC Koln',
@@ -73,12 +94,16 @@ NAME_MAPS = {
 
 
 def fetch_league(code, season="2026"):
+    """Pull one league's fixtures, predict them all, write the artifacts."""
+    # The season param is required: unfiltered requests 403 on the free tier,
+    # which also caps at 10 requests/minute.
     r = requests.get(
         f"https://api.football-data.org/v4/competitions/{code}/matches",
         headers={"X-Auth-Token": TOKEN},
         params={"season": season},
     )
 
+    # Return, don't raise: one league failing shouldn't kill the other four.
     if r.status_code != 200:
         print(f"{code}: API returned {r.status_code}")
         return
@@ -91,9 +116,11 @@ def fetch_league(code, season="2026"):
             'home': m['homeTeam']['shortName'],
             'away': m['awayTeam']['shortName'],
             'status': m['status'],
+            # None until the match ends: the free tier gives no in-play score.
             'home_goals': m['score']['fullTime']['home'],
             'away_goals': m['score']['fullTime']['away'],
             'date': m['utcDate'][:10],
+            # Full UTC timestamp, so the app can show kickoff in local time.
             'utc': m['utcDate'],
             'home_crest': m['homeTeam']['crest'],
             'away_crest': m['awayTeam']['crest'],
@@ -113,6 +140,8 @@ def fetch_league(code, season="2026"):
         ['H', 'D', 'A'], default=None)
 
     # snapshot + promoted teams
+    # This printout is the main diagnostic in the system: it should only ever
+    # list genuinely promoted clubs. A familiar name here means a broken mapping.
     snap = pd.read_csv(f"artifacts/{code}/snapshot.csv")
     missing = sorted((set(fixtures['home']) | set(fixtures['away'])) - set(snap['team']))
     print(f"{code} unmatched teams: {missing}")
@@ -121,6 +150,8 @@ def fetch_league(code, season="2026"):
         snap = pd.concat([snap, pd.DataFrame([{'team': t, **DEFAULT}])], ignore_index=True)
 
     # features
+    # Same ten features pipeline.py trained on, in the same order. days_rest
+    # is hardcoded to 7 because a future fixture has no known previous match.
     snap_idx = snap.set_index('team')
     feat_rows = []
     for f in fixtures.itertuples():
@@ -136,8 +167,11 @@ def fetch_league(code, season="2026"):
     X = pd.DataFrame(feat_rows)
 
     # predictions
+    # All fixtures are re-predicted from scratch every run, so they improve
+    # as results feed back into the ratings.
     model = joblib.load(f"artifacts/{code}/model.pkl")
     probs = model.predict_proba(X)
+    # Index by classes_, not position: sklearn sorts them alphabetically (A, D, H).
     for i, cls in enumerate(model.classes_):
         fixtures[f'p_{cls}'] = probs[:, i]
     fixtures['pred_ftr'] = model.classes_[probs.argmax(axis=1)]
@@ -148,6 +182,9 @@ def fetch_league(code, season="2026"):
     fixtures['xg_away'] = ga.predict(X).round(1)
 
     # weekly long table
+    # Two rows per fixture, one per team, so the app can group by team.
+    # xW/xD/xL are probabilities, not 0/1 picks. Summing the most likely
+    # outcome instead gave Barcelona 111 points.
     rows = []
     for f in fixtures.itertuples():
         rows.append({
@@ -167,6 +204,8 @@ def fetch_league(code, season="2026"):
     weekly = pd.DataFrame(rows)
 
     # finished results back to CSV for retraining
+    # Same column format as the training CSVs, so load_league() can concat it
+    # without special handling. This is what closes the loop.
     done = fixtures[fixtures['status'] == 'FINISHED']
     if len(done) > 0:
         pd.DataFrame({
@@ -179,6 +218,8 @@ def fetch_league(code, season="2026"):
             'FTR': done['actual_ftr'],
         }).to_csv(f"data/results_{code}_2026_27.csv", index=False)
 
+    # app.py reads only fixtures.csv and weekly.csv. snapshot_live.csv is for
+    # debugging: it shows the snapshot including the DEFAULT rows.
     fixtures.to_csv(f"artifacts/{code}/fixtures.csv", index=False)
     weekly.to_csv(f"artifacts/{code}/weekly.csv", index=False)
     snap.to_csv(f"artifacts/{code}/snapshot_live.csv", index=False)
@@ -189,4 +230,5 @@ def fetch_league(code, season="2026"):
 for code in ['PD', 'PL', 'BL1', 'SA', 'FL1']:
     fetch_league(code)
 
+# Shown in the app, so a stale deploy is visible rather than silent.
 open("artifacts/last_update.txt", "w").write(str(datetime.now()))
