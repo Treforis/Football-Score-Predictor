@@ -20,7 +20,7 @@ Log loss on a held-out test set (all matches from August 2023 onward), compared 
 
 Uniform three-class guessing scores ln(3) = 1.099. The model improves on base rates by 0.065–0.102 log loss across all five leagues without any per-league tuning.
 
-Raw log loss is a poor way to compare leagues against each other — Serie A looks mid-table on the raw number but extracts the most signal, because its baseline is the hardest of the five.
+Raw log loss is a poor way to compare leagues against each other. Serie A looks mid-table on the raw number but extracts the most signal, because its baseline is the hardest of the five.
 
 ## How it works
 
@@ -44,7 +44,7 @@ Sequential loop over date-sorted matches. K = 20, starting rating 1500, +60 home
 new_rating = 1500 + (rating - 1500) * 0.75
 ```
 
-The rating is recorded *before* each match, then updated — this is the leakage guard.
+The rating is recorded *before* each match, then updated. This is the leakage guard.
 
 ### Models
 
@@ -52,7 +52,7 @@ Three `HistGradientBoostingRegressor`/`Classifier` models per league: one classi
 
 ### Train/test split
 
-Split by date at 2023-08-01. Never a random split — a random split would let the model train on matches that happen after the ones it's tested on.
+Split by date at 2023-08-01. Never a random split, because a random split would let the model train on matches that happen after the ones it's tested on.
 
 ## Project structure
 
@@ -108,11 +108,11 @@ Runs `fetch.py` → `pipeline.py` → `fetch.py`. Order matters: fetch pulls fin
 
 ## The app
 
-**Results** — finished, live and upcoming matches, stepped through one day at a time, with club badges and real scores against predictions.
+**Results.** Finished, live and upcoming matches, stepped through one day at a time, with club badges and real scores against predictions.
 
-**Matchdays** — fixture browser for any matchday. Played matches show the real score with the prediction underneath.
+**Matchdays.** Fixture browser for any matchday. Played matches show the real score with the prediction underneath.
 
-**Table** — projected final standings. Uses actual points for played matches and expected points for unplayed ones, so the projection updates as the season progresses. Expected points are `3 × P(win) + P(draw)`, not summed argmax picks — summing picks gives nonsense (Barcelona on 111 points).
+**Table.** Projected final standings. Uses actual points for played matches and expected points for unplayed ones, so the projection updates as the season progresses. Expected points are `3 × P(win) + P(draw)`, not summed argmax picks, because summing picks gives nonsense (Barcelona on 111 points).
 
 ## Notes and limitations
 
@@ -120,7 +120,7 @@ Promoted teams with no top-flight history get default features (Elo 1400, league
 
 Snapshot form features freeze at the end of the last completed season until `pipeline.py` reruns.
 
-The free API tier allows 10 requests per minute and returns no in-play data — scores appear only once a match is `FINISHED`.
+The free API tier allows 10 requests per minute and returns no in-play data, so scores appear only once a match is `FINISHED`.
 
 ## What was tested
 
