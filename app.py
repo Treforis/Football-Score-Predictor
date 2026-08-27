@@ -92,18 +92,29 @@ def day_picker(d, key):
 
     return d[d['dt'].dt.date == day], day
 
-def match_card(f,middle):
+def match_card(f, middle):
     """One fixture as a head-to-head row.
 
-    Home right-aligned and away left-aligned so both names sit against the
-    centre column, which is what makes it read as a single fixture. The
-    middle content differs per tab, so it's passed in.
+    Built as a single flexbox block rather than st.columns, because
+    Streamlit stacks columns vertically below ~640px and the card falls
+    apart into three separate rows on a phone. Flex stays horizontal at
+    any width.
     """
-    c1,c2,c3 = st.columns([4,3,4])
-    c1.markdown(f"<div style='text-align:right'> {badge(f.home_crest)}"
-                f"<b>{f.home}</b></div>", unsafe_allow_html=True)
-    c2.markdown(f"<div style='text-align:center'>{middle}</div>", unsafe_allow_html=True)
-    c3.markdown(f"<div><b>{f.away}</b> {badge(f.away_crest)}</div>", unsafe_allow_html=True)
+    st.markdown(
+        f"<div style='display:flex;align-items:center;gap:8px;width:100%'>"
+        f"  <div style='flex:1;text-align:right;display:flex;align-items:center;"
+        f"              justify-content:flex-end;gap:6px;min-width:0'>"
+        f"    <b style='overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>{f.home}</b>"
+        f"    {badge(f.home_crest, 26)}"
+        f"  </div>"
+        f"  <div style='flex:0 0 auto;text-align:center;line-height:1.25'>{middle}</div>"
+        f"  <div style='flex:1;text-align:left;display:flex;align-items:center;"
+        f"              gap:6px;min-width:0'>"
+        f"    {badge(f.away_crest, 26)}"
+        f"    <b style='overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>{f.away}</b>"
+        f"  </div>"
+        f"</div>",
+        unsafe_allow_html=True)
 
 with tab1:
     today = pd.Timestamp.now(tz='America/Toronto').normalize().tz_localize(None)
