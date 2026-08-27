@@ -109,22 +109,18 @@ with tab2:
     md = st.number_input("Matchday", min_value=1, max_value=maxmd, value=1, step=1)
     week = fixtures[fixtures['matchday'] == md]
 
-    st.caption(f"{len(week)} fixtures · {week['date'].min()} to {week['date'].max()}")
+    st.caption(f"{len(week)} fixtures · {week['dt'].min().strftime('%d %b')} "f"to {week['dt'].max().strftime('%d %b')}")
 
     for f in week.itertuples():
-        c1, c2, c3 = st.columns([3, 3, 3])
+        st.caption(f.kick.strftime('%a %d %b, %H:%M'))
 
-        c1.markdown(f"**{f.home}**")
-        c3.markdown(f"**{f.away}**")
-
-        if f.status == 'FINISHED':
-            c2.markdown(f"### {int(f.home_goals)} – {int(f.away_goals)}")
+        if pd.notna(f.home_goals):
+            mid = (f"<span style='font-size:1.8em'><b>{int(f.home_goals)} – {int(f.away_goals)}</b></span><br>"
+                   f"<span style='font-size:0.75em;opacity:0.55'>predicted {round(f.xg_home)} – {round(f.xg_away)}</span>")
         else:
-            c2.markdown(
-                f"### {round(f.xg_home)} – {round(f.xg_away)}\n"
-                f"_{f.xg_home} – {f.xg_away}_  \n"
-                f"H {f.p_H:.0%} · D {f.p_D:.0%} · A {f.p_A:.0%}"
-            )
+            mid = (f"<span style='font-size:1.5em'>{round(f.xg_home)} – {round(f.xg_away)}</span><br>"
+                   f"<span style='font-size:0.8em'>H {f.p_H:.0%} · D {f.p_D:.0%} · A {f.p_A:.0%}</span>")
+        match_card(f, mid)
         st.divider()
 
 with tab3:
