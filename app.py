@@ -36,15 +36,19 @@ def day_picker(d, key):
     i = st.session_state.get(key, 0)
     i = max(0, min(i, len(days) - 1))
 
-    c1, c2, c3 = st.columns([1, 4, 1])
-
-    if c1.button("‹ Prev", key=f"{key}_p", disabled=(i == 0)):
+    if st.session_state.pop(f"{key}_go_p", False):
         i -= 1
-    if c3.button("Next ›", key=f"{key}_n", disabled=(i == len(days) - 1)):
+    if st.session_state.pop(f"{key}_go_n", False):
         i += 1
 
     i = max(0, min(i, len(days) - 1))
     st.session_state[key] = i
+
+    c1, c2, c3 = st.columns([1, 4, 1])
+    c1.button("‹ Prev", key=f"{key}_p", disabled=(i == 0),
+              on_click=lambda: st.session_state.update({f"{key}_go_p": True}))
+    c3.button("Next ›", key=f"{key}_n", disabled=(i == len(days) - 1),
+              on_click=lambda: st.session_state.update({f"{key}_go_n": True}))
 
     day = days[i]
     c2.markdown(
@@ -100,7 +104,6 @@ with tab1:
 
     with t_up:
         d, _ = day_picker(upcoming.sort_values('dt'), "d_up")
-        n = st.number_input("Show next", 5, 100, 20, 5)
         for f in d.itertuples():
             st.caption(f"MD {f.matchday} · {f.kick.strftime('%a %d %b, %H:%M')}")
             mid = (f"<span style='font-size:1.4em'>{round(f.xg_home)} – {round(f.xg_away)}</span><br>"
@@ -152,8 +155,9 @@ with tab3:
     t['Pts'] = t['Pts'].astype(int)
 
     t = t.sort_values('Proj', ascending=False)
-    t.index.name = 'Team'
+    t = t.reset_index()
+    t = t.rename(columns={'team': 'Team'})
     t.insert(0, 'Pos', range(1, len(t) + 1))
 
-    st.dataframe(t, use_container_width=True)
+    st.dataframe(t, use_container_width=True, hide_index=True)
     
